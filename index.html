@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI‑chatt</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    #chat-container {
+      width: 100%;
+      max-width: 500px;
+      background: white;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      height: 90vh;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    #messages {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .message {
+      margin: 6px 0;
+      padding: 8px 12px;
+      border-radius: 16px;
+      max-width: 80%;
+      word-wrap: break-word;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+    .user {
+      background: #d1e7dd;
+      align-self: flex-end;
+    }
+    .ai {
+      background: #e2e3e5;
+      align-self: flex-start;
+    }
+    .loading {
+      font-style: italic;
+      color: #888;
+    }
+    form {
+      display: flex;
+      border-top: 1px solid #ccc;
+    }
+    input[type="text"] {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      outline: none;
+      font-size: 16px;
+    }
+    button {
+      padding: 10px 15px;
+      border: none;
+      background: #0d6efd;
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background: #0b5ed7;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div id="chat-container">
+    <div id="messages"></div>
+    <form id="chatForm">
+      <input type="text" id="userInput" placeholder="Skriv ett meddelande..." autocomplete="off" required />
+      <button type="submit">➤</button>
+    </form>
+  </div>
+
+  <script>
+    const webhookUrl = "https://hook.eu2.make.com/qhakqbhaq75m0tj6cfv2hqhlr71rrv1p"; // <-- Byt till din Make-webhook-URL
+
+    const messagesDiv = document.getElementById("messages");
+    const chatForm = document.getElementById("chatForm");
+    const userInput = document.getElementById("userInput");
+
+    // Ladda historik från sessionStorage
+    let history = JSON.parse(sessionStorage.getItem("chatHistory") || "[]");
+    renderMessages();
+
+    chatForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = userInput.value.trim();
+      if (!text) return;
+
+      // Lägg till användarens meddelande
+      history.push({ role: "user", content: text });
+      sessionStorage.setItem("chatHistory", JSON.stringify(history));
+      renderMessages();
+      userInput.value = "";
+
+      // Visa laddningsindikator
+      const loadingMsg = { role: "ai", content: "Skriver..." };
+      history.push(loadingMsg);
+      renderMessages();
+
+      try {
+        const res = await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: history.filter(m => m.content !== "Skriver...") })
+        });
+
+        const data = await res.json();
+
+        // Ta bort laddningsindikator
+        history = history.filter(m => m.content !== "Skriver...");
+
+        if (data.reply) {
+          history.push({ role: "ai", content: data.reply });
+        } else {
+          history.push({ role: "ai", content: "⚠️ Inget svar från AI." });
+        }
+
+        sessionStorage.setItem("chatHistory", JSON.stringify(history));
+        renderMessages();
+      } catch (err) {
+        console.error("Fel vid anrop:", err);
+        history = history.filter(m => m.content !== "Skriver...");
+        history.push({ role: "ai", content: "⚠️ Kunde inte hämta svar." });
+        renderMessages();
+      }
+    });
+
+    function renderMessages() {
+      messagesDiv.innerHTML = "";
+      history.forEach(msg => {
+        const div = document.createElement("div");
+        div.className = `message ${msg.role}`;
+        div.textContent = msg.content;
+        messagesDiv.appendChild(div);
+      });
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+  </script>
+</body>
+</html>
